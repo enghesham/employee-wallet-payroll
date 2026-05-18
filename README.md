@@ -295,6 +295,8 @@ Filters:
 
 ## Concurrency Testing Note
 
+Concurrency safety relies on database transactions and row-level locking using `SELECT ... FOR UPDATE`. SQLite does not fully represent this behavior, so production concurrency should be validated against PostgreSQL/MySQL.
+
 The implementation uses PostgreSQL row-level locking through `lockForUpdate()` inside transactions. SQLite-based tests cannot faithfully prove concurrent row locking behavior.
 
 In a production CI setup, I would add a PostgreSQL integration test that starts two parallel workers attempting to debit or withdraw from the same wallet and asserts only one operation can consume the available balance.
@@ -302,12 +304,15 @@ In a production CI setup, I would add a PostgreSQL integration test that starts 
 ## Improvements With More Time
 
 - Queue payroll event processing and bank callback handling.
+- Add full queues with retries, dead-letter handling, and operational monitoring.
 - Add an outbox pattern for reliable provider communication.
 - Build real provider adapters for payroll and banking.
-- Add webhook signature verification.
+- Add full HMAC webhook signatures.
+- Publish an OpenAPI specification.
 - Add PostgreSQL-backed concurrency tests.
 - Add structured logging, correlation IDs, and tracing.
 - Add reconciliation reports for payroll, bank payments, and wallet ledger entries.
+- Add scheduled reconciliation jobs.
 - Add an admin dashboard.
 - Introduce a multi-tenant employer/company model.
 - Add FX support with explicit conversion ledger entries.
