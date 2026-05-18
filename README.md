@@ -339,6 +339,8 @@ In a production CI setup, I would add a PostgreSQL integration test that starts 
 
 ## Improvements With More Time
 
+Redis, message brokers, and background jobs are intentionally not required for the current scope. The core flows are processed synchronously to keep financial behavior easy to reason about. In production, queues would be introduced for provider event processing, retry backoff, reconciliation jobs, notifications, and outbox-driven integrations once those needs justify the operational complexity.
+
 - Queue payroll event processing and bank callback handling.
 - Add full queues with retries, dead-letter handling, and operational monitoring.
 - Add an outbox pattern for reliable provider communication.
