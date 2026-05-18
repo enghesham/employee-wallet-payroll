@@ -6,6 +6,7 @@ use App\Domain\Wallets\Exceptions\DuplicateOperationException;
 use App\Domain\Wallets\Exceptions\InsufficientFundsException;
 use App\Domain\Wallets\Exceptions\InvalidMoneyAmountException;
 use App\Domain\Wallets\Exceptions\WalletNotActiveException;
+use App\Http\Middleware\EnsureProviderTokenIsValid;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,7 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'provider.token' => EnsureProviderTokenIsValid::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (InsufficientFundsException|CurrencyMismatchException|WalletNotActiveException|InvalidMoneyAmountException $exception, Request $request) {

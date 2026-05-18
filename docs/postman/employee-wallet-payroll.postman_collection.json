@@ -1,0 +1,685 @@
+{
+  "info": {
+    "_postman_id": "b8d40860-62ef-4db2-91f5-employee-wallet-payroll",
+    "name": "Employee Wallet & Payroll Integration",
+    "description": "Main take-home API flows for employees, wallets, simulated payroll events, withdrawals, bank callbacks, idempotency, and ledger history.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "employee_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "wallet_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "salary_wallet_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "savings_wallet_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "withdrawal_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "withdrawal_id_failed",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bank_payment_request_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bank_payment_request_id_failed",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bank_provider_reference",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bank_provider_reference_failed",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idempotency_key",
+      "value": "withdrawal-demo-001",
+      "type": "string"
+    },
+    {
+      "key": "employee_external_reference",
+      "value": "emp-demo-001",
+      "type": "string"
+    },
+    {
+      "key": "employee_email",
+      "value": "demo.employee@example.test",
+      "type": "string"
+    },
+    {
+      "key": "payroll_provider_token",
+      "value": "local-payroll-token",
+      "type": "string"
+    },
+    {
+      "key": "bank_provider_token",
+      "value": "local-bank-token",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Health check",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      }
+    },
+    {
+      "name": "02 Create employee",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.collectionVariables.set('employee_id', json.data.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Demo Employee\",\n  \"email\": \"{{employee_email}}\",\n  \"external_reference\": \"{{employee_external_reference}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/employees",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "employees"
+          ]
+        }
+      }
+    },
+    {
+      "name": "03 Create salary wallet",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.collectionVariables.set('salary_wallet_id', json.data.id);",
+              "pm.collectionVariables.set('wallet_id', json.data.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"salary\",\n  \"currency\": \"USD\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/employees/{{employee_id}}/wallets",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "employees",
+            "{{employee_id}}",
+            "wallets"
+          ]
+        }
+      }
+    },
+    {
+      "name": "04 Create savings wallet",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.collectionVariables.set('savings_wallet_id', json.data.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"savings\",\n  \"currency\": \"USD\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/employees/{{employee_id}}/wallets",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "employees",
+            "{{employee_id}}",
+            "wallets"
+          ]
+        }
+      }
+    },
+    {
+      "name": "05 List employees",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/employees?status=active&search=Demo&per_page=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "employees"
+          ],
+          "query": [
+            {
+              "key": "status",
+              "value": "active"
+            },
+            {
+              "key": "search",
+              "value": "Demo"
+            },
+            {
+              "key": "per_page",
+              "value": "10"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "06 List wallets",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/wallets?currency=USD&status=active&per_page=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "wallets"
+          ],
+          "query": [
+            {
+              "key": "currency",
+              "value": "USD"
+            },
+            {
+              "key": "status",
+              "value": "active"
+            },
+            {
+              "key": "per_page",
+              "value": "10"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "07 Payroll employee onboarded event",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('payroll_onboard_event_id', 'evt-onboard-' + Date.now());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bank_provider_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"provider\": \"mock_payroll\",\n  \"provider_event_id\": \"{{payroll_onboard_event_id}}\",\n  \"event_type\": \"employee.onboarded\",\n  \"payload\": {\n    \"employee\": {\n      \"external_reference\": \"emp-payroll-onboarded-001\",\n      \"name\": \"Payroll Onboarded Employee\",\n      \"email\": \"payroll.onboarded@example.test\",\n      \"status\": \"active\"\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/payroll/events",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payroll",
+            "events"
+          ]
+        }
+      }
+    },
+    {
+      "name": "08 Payroll salary run completed event",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('salary_event_id', 'evt-salary-demo-001');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{payroll_provider_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"provider\": \"mock_payroll\",\n  \"provider_event_id\": \"{{salary_event_id}}\",\n  \"event_type\": \"salary_run.completed\",\n  \"payload\": {\n    \"employee_external_reference\": \"{{employee_external_reference}}\",\n    \"period\": \"2026-05\",\n    \"amount\": \"3000.00\",\n    \"currency\": \"USD\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/payroll/events",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payroll",
+            "events"
+          ]
+        }
+      }
+    },
+    {
+      "name": "09 Wallet transaction history",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/wallets/{{wallet_id}}/ledger-entries?per_page=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "wallets",
+            "{{wallet_id}}",
+            "ledger-entries"
+          ],
+          "query": [
+            {
+              "key": "per_page",
+              "value": "10"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "10 Withdrawal request",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('idempotency_key', 'withdrawal-demo-' + Date.now());"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.collectionVariables.set('withdrawal_id', json.data.id);",
+              "pm.collectionVariables.set('bank_payment_request_id', json.data.bank_payment_requests[0].id);",
+              "pm.collectionVariables.set('bank_provider_reference', json.data.bank_payment_requests[0].provider_reference);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": \"250.00\",\n  \"currency\": \"USD\",\n  \"metadata\": {\n    \"purpose\": \"monthly withdrawal demo\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/wallets/{{wallet_id}}/withdrawals",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "wallets",
+            "{{wallet_id}}",
+            "withdrawals"
+          ]
+        }
+      }
+    },
+    {
+      "name": "11 Bank success callback",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bank_provider_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"provider_reference\": \"{{bank_provider_reference}}\",\n  \"status\": \"succeeded\",\n  \"occurred_at\": \"2026-05-02T12:00:00Z\",\n  \"payload\": {\n    \"settlement_id\": \"settle_demo_success_001\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/integrations/bank/callbacks",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "integrations",
+            "bank",
+            "callbacks"
+          ]
+        }
+      }
+    },
+    {
+      "name": "12 Create withdrawal for failure callback",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('failed_withdrawal_idempotency_key', 'withdrawal-failure-demo-' + Date.now());"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.collectionVariables.set('withdrawal_id_failed', json.data.id);",
+              "pm.collectionVariables.set('bank_payment_request_id_failed', json.data.bank_payment_requests[0].id);",
+              "pm.collectionVariables.set('bank_provider_reference_failed', json.data.bank_payment_requests[0].provider_reference);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{failed_withdrawal_idempotency_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": \"125.00\",\n  \"currency\": \"USD\",\n  \"metadata\": {\n    \"purpose\": \"failed withdrawal demo\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/wallets/{{wallet_id}}/withdrawals",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "wallets",
+            "{{wallet_id}}",
+            "withdrawals"
+          ]
+        }
+      }
+    },
+    {
+      "name": "13 Bank failure callback",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bank_provider_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"provider_reference\": \"{{bank_provider_reference_failed}}\",\n  \"status\": \"failed\",\n  \"occurred_at\": \"2026-05-02T12:05:00Z\",\n  \"failure_reason\": \"Rejected by simulated bank\",\n  \"payload\": {\n    \"error_code\": \"SIMULATED_REJECTION\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/integrations/bank/callbacks",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "integrations",
+            "bank",
+            "callbacks"
+          ]
+        }
+      }
+    },
+    {
+      "name": "14 Duplicate payroll event test",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{payroll_provider_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"provider\": \"mock_payroll\",\n  \"provider_event_id\": \"{{salary_event_id}}\",\n  \"event_type\": \"salary_run.completed\",\n  \"payload\": {\n    \"employee_external_reference\": \"{{employee_external_reference}}\",\n    \"period\": \"2026-05\",\n    \"amount\": \"3000.00\",\n    \"currency\": \"USD\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/payroll/events",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "payroll",
+            "events"
+          ]
+        }
+      }
+    },
+    {
+      "name": "15 Duplicate withdrawal idempotency test",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": \"250.00\",\n  \"currency\": \"USD\",\n  \"metadata\": {\n    \"purpose\": \"monthly withdrawal demo\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/wallets/{{wallet_id}}/withdrawals",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "wallets",
+            "{{wallet_id}}",
+            "withdrawals"
+          ]
+        }
+      }
+    }
+  ]
+}

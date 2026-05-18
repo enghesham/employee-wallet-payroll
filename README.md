@@ -30,6 +30,8 @@ DB_PORT=5432
 DB_DATABASE=employee_wallet_payroll
 DB_USERNAME=postgres
 DB_PASSWORD=
+PAYROLL_PROVIDER_TOKEN=local-payroll-token
+BANK_PROVIDER_TOKEN=local-bank-token
 ```
 
 Run the app:
@@ -69,6 +71,17 @@ Main modules:
 - `Shared`: idempotency and shared infrastructure concepts.
 
 ## Design Decisions
+
+### Authentication Scope
+
+For the take-home scope, full end-user authentication is intentionally omitted to keep the focus on wallet correctness and integrations. Public employee and wallet endpoints are therefore left unguarded.
+
+Simulated provider endpoints use a simple bearer-token middleware:
+
+- `PAYROLL_PROVIDER_TOKEN` protects `POST /api/v1/payroll/events`
+- `BANK_PROVIDER_TOKEN` protects `POST /api/v1/integrations/bank/callbacks`
+
+In production, these endpoints would be protected using service-to-service authentication, webhook signatures, mTLS, IP allowlists, or Sanctum/JWT depending on the consuming clients.
 
 ### Ledger Entries
 
@@ -171,6 +184,12 @@ Filters:
 
 ### Payroll Events
 
+Requires:
+
+```http
+Authorization: Bearer <PAYROLL_PROVIDER_TOKEN>
+```
+
 ```http
 POST /payroll/events
 ```
@@ -205,6 +224,12 @@ Idempotency-Key: withdrawal-user-123-001
 ```
 
 ### Bank Callbacks
+
+Requires:
+
+```http
+Authorization: Bearer <BANK_PROVIDER_TOKEN>
+```
 
 ```http
 POST /integrations/bank/callbacks
@@ -257,7 +282,7 @@ Filters:
 - Salary wallets are auto-created when a valid salary event arrives for an existing employee.
 - Employee onboarding events create or update employees by external reference.
 - Employee status changes are accepted from payroll events and update the local employee status.
-- Authentication and authorization are out of scope for this take-home task.
+- Full end-user authentication and authorization are out of scope for this take-home task.
 - Tests run on SQLite for speed; PostgreSQL is the intended runtime database.
 
 ## Concurrency Testing Note

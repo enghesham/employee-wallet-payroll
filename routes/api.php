@@ -19,7 +19,9 @@ Route::prefix('v1')->group(function (): void {
     Route::post('employees/{employee}/wallets', [WalletController::class, 'store']);
     Route::get('wallets/{wallet}/ledger-entries', [WalletLedgerEntryController::class, 'index']);
     Route::post('wallets/{wallet}/withdrawals', [WithdrawalRequestController::class, 'store']);
-    Route::post('integrations/bank/callbacks', [BankPaymentCallbackController::class, 'store']);
-    Route::post('payroll/events', [PayrollEventController::class, 'store']);
+    Route::post('integrations/bank/callbacks', [BankPaymentCallbackController::class, 'store'])
+        ->middleware('provider.token:bank');
+    Route::post('payroll/events', [PayrollEventController::class, 'store'])
+        ->middleware('provider.token:payroll');
     Route::apiResource('wallets', WalletController::class)->only(['index', 'show']);
 });
