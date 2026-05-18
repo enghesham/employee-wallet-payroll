@@ -1,8 +1,15 @@
 <?php
 
+use App\Domain\Banking\Exceptions\BankPaymentStateException;
+use App\Domain\Wallets\Exceptions\CurrencyMismatchException;
+use App\Domain\Wallets\Exceptions\DuplicateOperationException;
+use App\Domain\Wallets\Exceptions\InsufficientFundsException;
+use App\Domain\Wallets\Exceptions\InvalidMoneyAmountException;
+use App\Domain\Wallets\Exceptions\WalletNotActiveException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,5 +22,23 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (InsufficientFundsException|CurrencyMismatchException|WalletNotActiveException|InvalidMoneyAmountException $exception, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        });
+
+        $exceptions->render(function (DuplicateOperationException|BankPaymentStateException $exception, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 409);
+        });
     })->create();
