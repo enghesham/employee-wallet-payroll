@@ -52,6 +52,22 @@ Run tests:
 php artisan test
 ```
 
+## API Docs UI
+
+Start the Laravel server, then open:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+The UI uses Swagger UI with the local OpenAPI spec at:
+
+```text
+public/docs/openapi.json
+```
+
+Swagger UI assets are loaded from a CDN, so the browser needs internet access for the documentation UI to render.
+
 ## Architecture
 
 The application is a modular Laravel monolith. Business workflows live in domain actions/services, while controllers stay thin.

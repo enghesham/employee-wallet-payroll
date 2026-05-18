@@ -1,0 +1,307 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Employee Wallet & Payroll Integration API",
+    "version": "1.0.0",
+    "description": "REST API for employees, wallets, payroll events, wallet ledger entries, withdrawals, transfers, and simulated bank callbacks."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "providerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Provider token"
+      }
+    },
+    "schemas": {
+      "EmployeeCreate": {
+        "type": "object",
+        "required": ["name", "email", "external_reference"],
+        "properties": {
+          "name": {"type": "string", "example": "Demo Employee"},
+          "email": {"type": "string", "format": "email", "example": "demo.employee@example.test"},
+          "external_reference": {"type": "string", "example": "emp-demo-001"},
+          "status": {"type": "string", "enum": ["active", "inactive", "suspended"], "example": "active"}
+        }
+      },
+      "WalletCreate": {
+        "type": "object",
+        "required": ["type", "currency"],
+        "properties": {
+          "type": {"type": "string", "enum": ["salary", "savings", "bonus"], "example": "salary"},
+          "currency": {"type": "string", "example": "USD"},
+          "status": {"type": "string", "enum": ["active", "frozen", "closed"], "example": "active"}
+        }
+      },
+      "PayrollEvent": {
+        "type": "object",
+        "required": ["provider_event_id", "event_type", "payload"],
+        "properties": {
+          "provider": {"type": "string", "example": "mock_payroll"},
+          "provider_event_id": {"type": "string", "example": "salary-run-2026-05-emp-001"},
+          "event_type": {
+            "type": "string",
+            "enum": ["employee.onboarded", "employee.status_changed", "salary_run.completed"],
+            "example": "salary_run.completed"
+          },
+          "payload": {
+            "type": "object",
+            "example": {
+              "employee_external_reference": "emp-demo-001",
+              "period": "2026-05",
+              "amount": "3000.00",
+              "currency": "USD"
+            }
+          }
+        }
+      },
+      "WithdrawalCreate": {
+        "type": "object",
+        "required": ["amount", "currency"],
+        "properties": {
+          "amount": {"type": "string", "example": "250.00"},
+          "currency": {"type": "string", "example": "USD"},
+          "idempotency_key": {"type": "string", "example": "withdrawal-user-123-001"},
+          "metadata": {"type": "object", "example": {"purpose": "monthly withdrawal"}}
+        }
+      },
+      "TransferCreate": {
+        "type": "object",
+        "required": ["to_wallet_id", "amount", "currency"],
+        "properties": {
+          "to_wallet_id": {"type": "integer", "example": 2},
+          "amount": {"type": "string", "example": "125.00"},
+          "currency": {"type": "string", "example": "USD"},
+          "idempotency_key": {"type": "string", "example": "transfer-demo-001"},
+          "reason": {"type": "string", "example": "Move salary funds to savings"},
+          "metadata": {"type": "object", "example": {"channel": "docs"}}
+        }
+      },
+      "BankCallback": {
+        "type": "object",
+        "required": ["provider_reference", "status", "occurred_at"],
+        "properties": {
+          "provider": {"type": "string", "example": "mock_bank"},
+          "provider_reference": {"type": "string", "example": "bank_pay_123"},
+          "status": {"type": "string", "enum": ["succeeded", "failed"], "example": "succeeded"},
+          "occurred_at": {"type": "string", "format": "date-time", "example": "2026-05-02T12:00:00Z"},
+          "failure_reason": {"type": "string", "example": "Rejected by simulated bank"},
+          "payload": {"type": "object", "example": {"settlement_id": "settle_demo_001"}}
+        }
+      }
+    },
+    "parameters": {
+      "EmployeeId": {
+        "name": "employee",
+        "in": "path",
+        "required": true,
+        "schema": {"type": "integer"}
+      },
+      "WalletId": {
+        "name": "wallet",
+        "in": "path",
+        "required": true,
+        "schema": {"type": "integer"}
+      },
+      "PayrollEventId": {
+        "name": "payrollEvent",
+        "in": "path",
+        "required": true,
+        "schema": {"type": "integer"}
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "schema": {"type": "string"},
+        "example": "request-demo-001"
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "tags": ["Health"],
+        "responses": {
+          "200": {"description": "Service is healthy"}
+        }
+      }
+    },
+    "/employees": {
+      "get": {
+        "summary": "List employees",
+        "tags": ["Employees"],
+        "parameters": [
+          {"name": "status", "in": "query", "schema": {"type": "string", "enum": ["active", "inactive", "suspended"]}},
+          {"name": "search", "in": "query", "schema": {"type": "string"}},
+          {"name": "per_page", "in": "query", "schema": {"type": "integer", "default": 15}}
+        ],
+        "responses": {"200": {"description": "Paginated employees"}}
+      },
+      "post": {
+        "summary": "Create employee",
+        "tags": ["Employees"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/EmployeeCreate"}
+            }
+          }
+        },
+        "responses": {"201": {"description": "Employee created"}}
+      }
+    },
+    "/employees/{employee}": {
+      "get": {
+        "summary": "Show employee",
+        "tags": ["Employees"],
+        "parameters": [{"$ref": "#/components/parameters/EmployeeId"}],
+        "responses": {"200": {"description": "Employee details"}}
+      }
+    },
+    "/employees/{employee}/wallets": {
+      "get": {
+        "summary": "List employee wallets",
+        "tags": ["Wallets"],
+        "parameters": [
+          {"$ref": "#/components/parameters/EmployeeId"},
+          {"name": "currency", "in": "query", "schema": {"type": "string"}},
+          {"name": "type", "in": "query", "schema": {"type": "string", "enum": ["salary", "savings", "bonus"]}},
+          {"name": "status", "in": "query", "schema": {"type": "string", "enum": ["active", "frozen", "closed"]}},
+          {"name": "per_page", "in": "query", "schema": {"type": "integer", "default": 15}}
+        ],
+        "responses": {"200": {"description": "Paginated wallets"}}
+      },
+      "post": {
+        "summary": "Create wallet for employee",
+        "tags": ["Wallets"],
+        "parameters": [{"$ref": "#/components/parameters/EmployeeId"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WalletCreate"}}}
+        },
+        "responses": {"201": {"description": "Wallet created"}}
+      }
+    },
+    "/wallets": {
+      "get": {
+        "summary": "List wallets",
+        "tags": ["Wallets"],
+        "parameters": [
+          {"name": "currency", "in": "query", "schema": {"type": "string"}},
+          {"name": "type", "in": "query", "schema": {"type": "string", "enum": ["salary", "savings", "bonus"]}},
+          {"name": "status", "in": "query", "schema": {"type": "string", "enum": ["active", "frozen", "closed"]}},
+          {"name": "per_page", "in": "query", "schema": {"type": "integer", "default": 15}}
+        ],
+        "responses": {"200": {"description": "Paginated wallets"}}
+      }
+    },
+    "/wallets/{wallet}": {
+      "get": {
+        "summary": "Show wallet",
+        "tags": ["Wallets"],
+        "parameters": [{"$ref": "#/components/parameters/WalletId"}],
+        "responses": {"200": {"description": "Wallet details"}}
+      }
+    },
+    "/wallets/{wallet}/ledger-entries": {
+      "get": {
+        "summary": "Wallet transaction history",
+        "tags": ["Ledger"],
+        "parameters": [
+          {"$ref": "#/components/parameters/WalletId"},
+          {"name": "type", "in": "query", "schema": {"type": "string"}},
+          {"name": "source_type", "in": "query", "schema": {"type": "string"}},
+          {"name": "date_from", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "date_to", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "amount_min", "in": "query", "schema": {"type": "string"}},
+          {"name": "amount_max", "in": "query", "schema": {"type": "string"}},
+          {"name": "per_page", "in": "query", "schema": {"type": "integer", "default": 15}}
+        ],
+        "responses": {"200": {"description": "Paginated ledger entries"}}
+      }
+    },
+    "/wallets/{wallet}/transfers": {
+      "post": {
+        "summary": "Transfer funds between same-employee wallets",
+        "tags": ["Money Movement"],
+        "parameters": [
+          {"$ref": "#/components/parameters/WalletId"},
+          {"$ref": "#/components/parameters/IdempotencyKey"}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TransferCreate"}}}
+        },
+        "responses": {"202": {"description": "Transfer accepted"}}
+      }
+    },
+    "/wallets/{wallet}/withdrawals": {
+      "post": {
+        "summary": "Request bank withdrawal",
+        "tags": ["Banking"],
+        "parameters": [
+          {"$ref": "#/components/parameters/WalletId"},
+          {"$ref": "#/components/parameters/IdempotencyKey"}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WithdrawalCreate"}}}
+        },
+        "responses": {"202": {"description": "Withdrawal accepted and funds reserved"}}
+      }
+    },
+    "/payroll/events": {
+      "post": {
+        "summary": "Receive simulated payroll event",
+        "tags": ["Payroll"],
+        "security": [{"providerBearer": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PayrollEvent"}}}
+        },
+        "responses": {
+          "202": {"description": "Payroll event received"},
+          "401": {"description": "Missing or invalid provider token"},
+          "409": {"description": "Event already processing"}
+        }
+      }
+    },
+    "/integrations/payroll/events/{payrollEvent}/retry": {
+      "post": {
+        "summary": "Retry failed payroll event",
+        "tags": ["Payroll"],
+        "security": [{"providerBearer": []}],
+        "parameters": [{"$ref": "#/components/parameters/PayrollEventId"}],
+        "responses": {
+          "200": {"description": "Retry result"},
+          "401": {"description": "Missing or invalid provider token"},
+          "409": {"description": "Event is not retryable"}
+        }
+      }
+    },
+    "/integrations/bank/callbacks": {
+      "post": {
+        "summary": "Receive simulated bank callback",
+        "tags": ["Banking"],
+        "security": [{"providerBearer": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BankCallback"}}}
+        },
+        "responses": {
+          "200": {"description": "Callback processed"},
+          "401": {"description": "Missing or invalid provider token"},
+          "409": {"description": "Conflicting final callback state"}
+        }
+      }
+    }
+  }
+}
