@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Banking\Exceptions\BankPaymentStateException;
+use App\Domain\Payroll\Exceptions\PayrollEventStateException;
 use App\Domain\Wallets\Exceptions\CurrencyMismatchException;
 use App\Domain\Wallets\Exceptions\DuplicateOperationException;
 use App\Domain\Wallets\Exceptions\InsufficientFundsException;
@@ -35,7 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ], 422);
         });
 
-        $exceptions->render(function (DuplicateOperationException|BankPaymentStateException $exception, Request $request) {
+        $exceptions->render(function (DuplicateOperationException|BankPaymentStateException|PayrollEventStateException $exception, Request $request) {
             if (! $request->is('api/*')) {
                 return null;
             }

@@ -11,6 +11,7 @@ use App\Domain\Wallets\Enums\WalletLedgerEntryType;
 use App\Domain\Wallets\Enums\WalletType;
 use App\Domain\Wallets\Models\Wallet;
 use App\Domain\Wallets\Models\WalletLedgerEntry;
+use App\Domain\Wallets\Services\WalletLedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -198,5 +199,176 @@ class PayrollEventApiTest extends TestCase
         ])
             ->assertUnauthorized()
             ->assertJsonPath('message', 'Invalid provider token.');
+    }
+
+    public function test_failed_payroll_event_can_be_retried_successfully(): void
+    {
+        $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', [
+            'provider_event_id' => 'retry-salary-after-employee-created',
+            'event_type' => PayrollEventType::SalaryRunCompleted->value,
+            'payload' => [
+                'employee_external_reference' => 'retry_emp_1',
+                'period' => '2026-05',
+                'amount' => '1000.0000',
+                'currency' => 'USD',
+            ],
+        ])
+            ->assertAccepted()
+            ->assertJsonPath('data.status', PayrollEventStatus::Failed->value);
+
+        $event = PayrollEvent::query()->firstOrFail();
+        Employee::factory()->create(['external_reference' => 'retry_emp_1']);
+
+        $response = $this
+            ->withToken('local-payroll-token')
+            ->postJson("/api/v1/integrations/payroll/events/{$event->id}/retry");
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.status', PayrollEventStatus::Processed->value)
+            ->assertJsonPath('data.failure_reason', null);
+
+        $wallet = Wallet::query()->firstOrFail();
+
+        $this->assertSame('1000.0000', $wallet->available_balance);
+        $this->assertSame(1, WalletLedgerEntry::query()->count());
+    }
+
+    public function test_processed_payroll_event_cannot_be_retried(): void
+    {
+        Employee::factory()->create(['external_reference' => 'processed_retry_emp']);
+
+        $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', [
+            'provider_event_id' => 'processed-retry-event',
+            'event_type' => PayrollEventType::SalaryRunCompleted->value,
+            'payload' => [
+                'employee_external_reference' => 'processed_retry_emp',
+                'period' => '2026-05',
+                'amount' => '500.0000',
+                'currency' => 'USD',
+            ],
+        ])->assertAccepted();
+
+        $event = PayrollEvent::query()->firstOrFail();
+
+        $this
+            ->withToken('local-payroll-token')
+            ->postJson("/api/v1/integrations/payroll/events/{$event->id}/retry")
+            ->assertConflict()
+            ->assertJsonPath('message', "Payroll event [{$event->id}] cannot be retried from status [processed].");
+    }
+
+    public function test_processing_payroll_event_cannot_be_retried(): void
+    {
+        $event = PayrollEvent::query()->create([
+            'provider' => 'mock_payroll',
+            'provider_event_id' => 'processing-retry-event',
+            'event_type' => PayrollEventType::SalaryRunCompleted,
+            'payroll_employee_id' => 'processing_retry_emp',
+            'amount' => '500.0000',
+            'currency' => 'USD',
+            'status' => PayrollEventStatus::Processing,
+            'payload' => [
+                'employee_external_reference' => 'processing_retry_emp',
+                'period' => '2026-05',
+                'amount' => '500.0000',
+                'currency' => 'USD',
+            ],
+        ]);
+
+        $this
+            ->withToken('local-payroll-token')
+            ->postJson("/api/v1/integrations/payroll/events/{$event->id}/retry")
+            ->assertConflict()
+            ->assertJsonPath('message', "Payroll event [{$event->id}] cannot be retried from status [processing].");
+    }
+
+    public function test_retry_failure_keeps_event_failed_with_updated_failure_reason(): void
+    {
+        $event = PayrollEvent::query()->create([
+            'provider' => 'mock_payroll',
+            'provider_event_id' => 'retry-still-fails-event',
+            'event_type' => PayrollEventType::SalaryRunCompleted,
+            'payroll_employee_id' => 'still_missing_emp',
+            'amount' => '500.0000',
+            'currency' => 'USD',
+            'status' => PayrollEventStatus::Failed,
+            'failure_reason' => 'Old failure reason.',
+            'payload' => [
+                'employee_external_reference' => 'still_missing_emp',
+                'period' => '2026-05',
+                'amount' => '500.0000',
+                'currency' => 'USD',
+            ],
+        ]);
+
+        $response = $this
+            ->withToken('local-payroll-token')
+            ->postJson("/api/v1/integrations/payroll/events/{$event->id}/retry");
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.status', PayrollEventStatus::Failed->value);
+
+        $event->refresh();
+
+        $this->assertSame(PayrollEventStatus::Failed, $event->status);
+        $this->assertStringContainsString('still_missing_emp', $event->failure_reason);
+        $this->assertNotSame('Old failure reason.', $event->failure_reason);
+    }
+
+    public function test_retried_salary_event_does_not_double_credit_if_partial_work_already_happened(): void
+    {
+        $employee = Employee::factory()->create(['external_reference' => 'partial_retry_emp']);
+        $wallet = Wallet::factory()->for($employee)->create([
+            'type' => WalletType::Salary,
+            'currency' => 'USD',
+            'available_balance' => '0.0000',
+        ]);
+
+        $event = PayrollEvent::query()->create([
+            'provider' => 'mock_payroll',
+            'provider_event_id' => 'partial-retry-salary-event',
+            'event_type' => PayrollEventType::SalaryRunCompleted,
+            'payroll_employee_id' => 'partial_retry_emp',
+            'employee_id' => $employee->id,
+            'wallet_id' => $wallet->id,
+            'amount' => '750.0000',
+            'currency' => 'USD',
+            'status' => PayrollEventStatus::Failed,
+            'failure_reason' => 'Simulated failure after ledger credit.',
+            'payload' => [
+                'employee_external_reference' => 'partial_retry_emp',
+                'period' => '2026-05',
+                'amount' => '750.0000',
+                'currency' => 'USD',
+            ],
+        ]);
+
+        app(WalletLedgerService::class)->credit(
+            wallet: $wallet,
+            amount: '750.0000',
+            currency: 'USD',
+            idempotencyKey: 'payroll:partial-retry-salary-event:partial_retry_emp:2026-05',
+            type: WalletLedgerEntryType::PayrollCredit,
+            source: $event,
+            reason: 'Payroll salary run completed for 2026-05.',
+            reference: $event->provider_event_id,
+            metadata: [
+                'provider' => 'mock_payroll',
+                'period' => '2026-05',
+            ],
+        );
+
+        $this
+            ->withToken('local-payroll-token')
+            ->postJson("/api/v1/integrations/payroll/events/{$event->id}/retry")
+            ->assertOk()
+            ->assertJsonPath('data.status', PayrollEventStatus::Processed->value);
+
+        $wallet->refresh();
+
+        $this->assertSame('750.0000', $wallet->available_balance);
+        $this->assertSame(1, WalletLedgerEntry::query()->count());
     }
 }

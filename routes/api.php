@@ -23,5 +23,7 @@ Route::prefix('v1')->group(function (): void {
         ->middleware('provider.token:bank');
     Route::post('payroll/events', [PayrollEventController::class, 'store'])
         ->middleware('provider.token:payroll');
+    Route::post('integrations/payroll/events/{payrollEvent}/retry', [PayrollEventController::class, 'retry'])
+        ->middleware('provider.token:payroll');
     Route::apiResource('wallets', WalletController::class)->only(['index', 'show']);
 });

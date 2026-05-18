@@ -7,6 +7,7 @@ use App\Domain\Employees\Models\Employee;
 use App\Domain\Payroll\Enums\PayrollEventStatus;
 use App\Domain\Payroll\Enums\PayrollEventType;
 use App\Domain\Payroll\Exceptions\PayrollEventProcessingException;
+use App\Domain\Payroll\Exceptions\PayrollEventStateException;
 use App\Domain\Payroll\Models\PayrollEvent;
 use App\Domain\Wallets\Enums\WalletLedgerEntryType;
 use App\Domain\Wallets\Enums\WalletStatus;
@@ -36,17 +37,20 @@ class ProcessPayrollEventAction
             ->first();
 
         if ($existingEvent !== null) {
-            return $existingEvent;
+            return $this->handleExistingEvent($existingEvent);
         }
 
         $event = $this->storeIncomingEvent($provider, $data['provider_event_id'], $eventType, $payload, $data['occurred_at'] ?? null);
 
-        if ($event->status !== PayrollEventStatus::Received) {
-            return $event->refresh();
-        }
+        return $this->processStoredEvent($event);
+    }
+
+    public function processStoredEvent(PayrollEvent $event): PayrollEvent
+    {
+        $event = $event->refresh();
 
         try {
-            return match ($eventType) {
+            return match ($event->event_type) {
                 PayrollEventType::EmployeeOnboarded => $this->processEmployeeOnboarded($event),
                 PayrollEventType::EmployeeStatusChanged => $this->processEmployeeStatusChanged($event),
                 PayrollEventType::SalaryRunCompleted => $this->processSalaryRunCompleted($event),
@@ -59,6 +63,15 @@ class ProcessPayrollEventAction
 
             return $event->refresh();
         }
+    }
+
+    private function handleExistingEvent(PayrollEvent $event): PayrollEvent
+    {
+        return match ($event->status) {
+            PayrollEventStatus::Processed, PayrollEventStatus::Failed, PayrollEventStatus::Ignored => $event->refresh(),
+            PayrollEventStatus::Processing => throw PayrollEventStateException::alreadyProcessing($event->id),
+            PayrollEventStatus::Received => $this->processStoredEvent($event),
+        };
     }
 
     private function storeIncomingEvent(

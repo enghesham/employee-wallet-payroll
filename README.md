@@ -132,6 +132,8 @@ Duplicate `provider_event_id` values are idempotent. Salary runs credit the empl
 
 If a salary wallet does not exist, the system creates one automatically for the salary currency. If the employee cannot be resolved, the event is stored as failed with a failure reason.
 
+Failed payroll events are not automatically retried through the inbound event endpoint. They can be retried explicitly through `POST /api/v1/integrations/payroll/events/{payrollEvent}/retry`, which only accepts events currently in `failed` status. Processing and processed events return a conflict response.
+
 ### Bank Simulation
 
 The bank integration is local and stubbed. A withdrawal creates a `withdrawal_request` and a `bank_payment_request`. The simulated bank callback endpoint resolves payment requests by provider reference, not internal database ID.
@@ -192,6 +194,7 @@ Authorization: Bearer <PAYROLL_PROVIDER_TOKEN>
 
 ```http
 POST /payroll/events
+POST /integrations/payroll/events/{payrollEvent}/retry
 ```
 
 Example salary event:
