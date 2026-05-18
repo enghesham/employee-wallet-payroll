@@ -4,6 +4,7 @@ namespace App\Domain\Payroll\Models;
 
 use App\Domain\Employees\Models\Employee;
 use App\Domain\Payroll\Enums\PayrollEventStatus;
+use App\Domain\Payroll\Enums\PayrollEventType;
 use App\Domain\Wallets\Models\Wallet;
 use App\Domain\Wallets\Models\WalletLedgerEntry;
 use Database\Factories\PayrollEventFactory;
@@ -43,6 +44,7 @@ class PayrollEvent extends Model
     {
         return [
             'amount' => 'decimal:4',
+            'event_type' => PayrollEventType::class,
             'status' => PayrollEventStatus::class,
             'payload' => 'array',
             'occurred_at' => 'datetime',

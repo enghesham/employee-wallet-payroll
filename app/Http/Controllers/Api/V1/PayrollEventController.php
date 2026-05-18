@@ -1,0 +1,22 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Domain\Payroll\Actions\ProcessPayrollEventAction;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\StorePayrollEventRequest;
+use App\Http\Resources\Api\V1\PayrollEventResource;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
+
+class PayrollEventController extends Controller
+{
+    public function store(StorePayrollEventRequest $request, ProcessPayrollEventAction $action): JsonResponse
+    {
+        $event = $action->execute($request->validated());
+
+        return (new PayrollEventResource($event))
+            ->response()
+            ->setStatusCode(Response::HTTP_ACCEPTED);
+    }
+}

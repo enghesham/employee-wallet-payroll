@@ -18,9 +18,9 @@ return new class extends Migration
             $table->string('provider')->default('mock_payroll');
             $table->string('provider_event_id');
             $table->string('event_type');
-            $table->string('payroll_employee_id')->index();
-            $table->decimal('amount', 19, 4);
-            $table->char('currency', 3);
+            $table->string('payroll_employee_id')->nullable()->index();
+            $table->decimal('amount', 19, 4)->nullable();
+            $table->char('currency', 3)->nullable();
             $table->string('status')->default(PayrollEventStatus::Received->value)->index();
             $table->json('payload');
             $table->timestampTz('occurred_at')->nullable();
@@ -35,7 +35,7 @@ return new class extends Migration
         });
 
         if (DB::getDriverName() === 'pgsql') {
-            DB::statement('ALTER TABLE payroll_events ADD CONSTRAINT payroll_events_amount_positive CHECK (amount > 0)');
+            DB::statement('ALTER TABLE payroll_events ADD CONSTRAINT payroll_events_amount_positive CHECK (amount IS NULL OR amount > 0)');
         }
     }
 
