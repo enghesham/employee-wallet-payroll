@@ -100,6 +100,32 @@ class PayrollEventApiTest extends TestCase
         $this->assertSame(1, WalletLedgerEntry::query()->count());
     }
 
+    public function test_employee_status_changed_event_updates_employee(): void
+    {
+        $employee = Employee::factory()->create([
+            'external_reference' => 'payroll_emp_status_1',
+            'status' => EmployeeStatus::Active,
+        ]);
+
+        $response = $this->postJson('/api/v1/payroll/events', [
+            'provider_event_id' => 'payroll-status-change-1',
+            'event_type' => PayrollEventType::EmployeeStatusChanged->value,
+            'payload' => [
+                'employee_external_reference' => 'payroll_emp_status_1',
+                'status' => EmployeeStatus::Suspended->value,
+            ],
+        ]);
+
+        $response
+            ->assertAccepted()
+            ->assertJsonPath('data.status', PayrollEventStatus::Processed->value)
+            ->assertJsonPath('data.employee_id', $employee->id);
+
+        $employee->refresh();
+
+        $this->assertSame(EmployeeStatus::Suspended, $employee->status);
+    }
+
     public function test_salary_run_completed_credits_employee_salary_wallet(): void
     {
         Employee::factory()->create(['external_reference' => 'payroll_emp_4001']);

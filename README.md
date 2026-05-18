@@ -1,58 +1,115 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Employee Wallet & Payroll Integration API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Laravel backend take-home implementation for employee wallets, simulated payroll events, simulated bank withdrawals, and auditable wallet ledger history.
 
-## About Laravel
+## Stack
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Laravel 13
+- PHP 8.4
+- PostgreSQL target database
+- REST API
+- PHPUnit feature and domain tests
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Architecture
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+The application is organized as a modular Laravel monolith under `app/Domain`.
 
-## Learning Laravel
+- `Employees`: employee identity and payroll reference.
+- `Wallets`: wallet balances and append-only ledger entries.
+- `Payroll`: simulated inbound payroll provider events.
+- `Banking`: withdrawal requests and simulated bank payment callbacks.
+- `Shared`: idempotency and external event primitives.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+Controllers are intentionally thin. Validation lives in Form Requests, response shape lives in API Resources, and business workflows live in Actions/Services.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Money Safety
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+All wallet balance changes go through `App\Domain\Wallets\Services\WalletLedgerService`.
 
-## Agentic Development
+The service guarantees:
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+- no direct controller balance mutation
+- `DB::transaction()` around each money movement
+- `lockForUpdate()` on wallet rows before balance changes
+- decimal string arithmetic using BCMath
+- no negative available or reserved balances
+- same-currency validation
+- wallet active-state validation
+- idempotent operations through `idempotency_records`
+- append-only `wallet_ledger_entries` with before/after available and reserved balances
 
-```bash
-composer require laravel/boost --dev
+Pending withdrawals move money from `available_balance` to `reserved_balance`. Reserved money is not spendable. Bank success captures reserved funds; bank failure releases them.
 
-php artisan boost:install
+## Concurrency Approach
+
+The production safety model relies on PostgreSQL row-level locks:
+
+1. Start a database transaction.
+2. Select the affected wallet row using `lockForUpdate()`.
+3. Re-check available/reserved balances after the lock is acquired.
+4. Apply the balance mutation.
+5. Insert the ledger entry inside the same transaction.
+6. Commit.
+
+For transfers, both wallet rows are locked in ascending wallet ID order to reduce deadlock risk.
+
+The automated test suite runs on SQLite for speed, so it cannot faithfully simulate PostgreSQL concurrent row locking. The critical concurrency behavior is therefore documented here and implemented in `WalletLedgerService`; in a production CI pipeline, an additional PostgreSQL integration test should run two parallel workers attempting debits against the same wallet and assert that only one can consume the available balance.
+
+## Main Endpoints
+
+```http
+GET  /api/v1/health
+
+POST /api/v1/employees
+GET  /api/v1/employees
+GET  /api/v1/employees/{employee}
+
+POST /api/v1/employees/{employee}/wallets
+GET  /api/v1/employees/{employee}/wallets
+GET  /api/v1/wallets
+GET  /api/v1/wallets/{wallet}
+GET  /api/v1/wallets/{wallet}/ledger-entries
+
+POST /api/v1/payroll/events
+
+POST /api/v1/wallets/{wallet}/withdrawals
+POST /api/v1/integrations/bank/callbacks
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+## Withdrawal Example
 
-## Contributing
+```http
+POST /api/v1/wallets/{wallet}/withdrawals
+Idempotency-Key: withdrawal-user-123-001
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```json
+{
+  "amount": "250.00",
+  "currency": "USD"
+}
+```
 
-## Code of Conduct
+## Bank Callback Example
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```http
+POST /api/v1/integrations/bank/callbacks
+```
 
-## Security Vulnerabilities
+```json
+{
+  "provider_reference": "bank_pay_123",
+  "status": "succeeded",
+  "occurred_at": "2026-05-02T12:00:00Z"
+}
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Tests
 
-## License
+Run:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+php artisan test
+```
+
+The test suite covers employee/wallet APIs, payroll event idempotency, salary credits, bank withdrawal reserve/capture/release, duplicate callbacks, transaction history, and core wallet ledger behavior.

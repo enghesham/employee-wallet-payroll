@@ -6,6 +6,7 @@ use App\Domain\Shared\Models\IdempotencyRecord;
 use App\Domain\Wallets\Enums\WalletLedgerEntryDirection;
 use App\Domain\Wallets\Enums\WalletLedgerEntryType;
 use App\Domain\Wallets\Enums\WalletType;
+use App\Domain\Wallets\Exceptions\CurrencyMismatchException;
 use App\Domain\Wallets\Exceptions\InsufficientFundsException;
 use App\Domain\Wallets\Models\Wallet;
 use App\Domain\Wallets\Models\WalletLedgerEntry;
@@ -101,6 +102,31 @@ class WalletLedgerServiceTest extends TestCase
         $this->assertSame($fromWallet->id, $entries['debit']->wallet_id);
         $this->assertSame($toWallet->id, $entries['credit']->wallet_id);
         $this->assertDatabaseCount('wallet_ledger_entries', 2);
+    }
+
+    public function test_transfer_rejects_different_currency_wallets(): void
+    {
+        $fromWallet = Wallet::factory()->create([
+            'available_balance' => '100.0000',
+            'currency' => 'USD',
+        ]);
+        $toWallet = Wallet::factory()->create([
+            'available_balance' => '10.0000',
+            'currency' => 'EUR',
+        ]);
+
+        $this->expectException(CurrencyMismatchException::class);
+
+        try {
+            $this->service->transfer($fromWallet, $toWallet, '30.0000', 'USD', 'transfer-currency-mismatch');
+        } finally {
+            $fromWallet->refresh();
+            $toWallet->refresh();
+
+            $this->assertSame('100.0000', $fromWallet->available_balance);
+            $this->assertSame('10.0000', $toWallet->available_balance);
+            $this->assertDatabaseCount('wallet_ledger_entries', 0);
+        }
     }
 
     public function test_duplicate_idempotency_key_does_not_apply_operation_twice(): void

@@ -82,6 +82,41 @@ class BankWithdrawalApiTest extends TestCase
         $this->assertSame(0, WalletLedgerEntry::query()->count());
     }
 
+    public function test_reserved_withdrawal_amount_is_not_spendable_by_another_withdrawal(): void
+    {
+        $wallet = Wallet::factory()->create([
+            'available_balance' => '100.0000',
+            'reserved_balance' => '0.0000',
+            'currency' => 'USD',
+        ]);
+
+        $this
+            ->withHeader('Idempotency-Key', 'reserve-not-spendable-first')
+            ->postJson("/api/v1/wallets/{$wallet->id}/withdrawals", [
+                'amount' => '80.0000',
+                'currency' => 'USD',
+            ])
+            ->assertAccepted();
+
+        $response = $this
+            ->withHeader('Idempotency-Key', 'reserve-not-spendable-second')
+            ->postJson("/api/v1/wallets/{$wallet->id}/withdrawals", [
+                'amount' => '30.0000',
+                'currency' => 'USD',
+            ]);
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Insufficient available balance. Requested 30.0000, available 20.0000.');
+
+        $wallet->refresh();
+
+        $this->assertSame('20.0000', $wallet->available_balance);
+        $this->assertSame('80.0000', $wallet->reserved_balance);
+        $this->assertSame(1, WithdrawalRequest::query()->count());
+        $this->assertSame(1, BankPaymentRequest::query()->count());
+    }
+
     public function test_success_callback_captures_reserved_funds(): void
     {
         [$wallet, $payment] = $this->createPendingWithdrawal('withdrawal-success-key', '40.0000');
