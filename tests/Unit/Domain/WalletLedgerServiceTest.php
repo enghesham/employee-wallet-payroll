@@ -8,6 +8,7 @@ use App\Domain\Wallets\Enums\WalletLedgerEntryType;
 use App\Domain\Wallets\Enums\WalletType;
 use App\Domain\Wallets\Exceptions\CurrencyMismatchException;
 use App\Domain\Wallets\Exceptions\InsufficientFundsException;
+use App\Domain\Wallets\Exceptions\WalletTransferNotAllowedException;
 use App\Domain\Wallets\Models\Wallet;
 use App\Domain\Wallets\Models\WalletLedgerEntry;
 use App\Domain\Wallets\Services\WalletLedgerService;
@@ -110,7 +111,8 @@ class WalletLedgerServiceTest extends TestCase
             'available_balance' => '100.0000',
             'currency' => 'USD',
         ]);
-        $toWallet = Wallet::factory()->create([
+        $toWallet = Wallet::factory()->for($fromWallet->employee)->create([
+            'type' => WalletType::Savings,
             'available_balance' => '10.0000',
             'currency' => 'EUR',
         ]);
@@ -119,6 +121,31 @@ class WalletLedgerServiceTest extends TestCase
 
         try {
             $this->service->transfer($fromWallet, $toWallet, '30.0000', 'USD', 'transfer-currency-mismatch');
+        } finally {
+            $fromWallet->refresh();
+            $toWallet->refresh();
+
+            $this->assertSame('100.0000', $fromWallet->available_balance);
+            $this->assertSame('10.0000', $toWallet->available_balance);
+            $this->assertDatabaseCount('wallet_ledger_entries', 0);
+        }
+    }
+
+    public function test_transfer_rejects_wallets_owned_by_different_employees(): void
+    {
+        $fromWallet = Wallet::factory()->create([
+            'available_balance' => '100.0000',
+            'currency' => 'USD',
+        ]);
+        $toWallet = Wallet::factory()->create([
+            'available_balance' => '10.0000',
+            'currency' => 'USD',
+        ]);
+
+        $this->expectException(WalletTransferNotAllowedException::class);
+
+        try {
+            $this->service->transfer($fromWallet, $toWallet, '30.0000', 'USD', 'transfer-different-employee');
         } finally {
             $fromWallet->refresh();
             $toWallet->refresh();

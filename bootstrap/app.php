@@ -7,6 +7,7 @@ use App\Domain\Wallets\Exceptions\DuplicateOperationException;
 use App\Domain\Wallets\Exceptions\InsufficientFundsException;
 use App\Domain\Wallets\Exceptions\InvalidMoneyAmountException;
 use App\Domain\Wallets\Exceptions\WalletNotActiveException;
+use App\Domain\Wallets\Exceptions\WalletTransferNotAllowedException;
 use App\Http\Middleware\EnsureProviderTokenIsValid;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -26,7 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->render(function (InsufficientFundsException|CurrencyMismatchException|WalletNotActiveException|InvalidMoneyAmountException $exception, Request $request) {
+        $exceptions->render(function (InsufficientFundsException|CurrencyMismatchException|WalletNotActiveException|InvalidMoneyAmountException|WalletTransferNotAllowedException $exception, Request $request) {
             if (! $request->is('api/*')) {
                 return null;
             }

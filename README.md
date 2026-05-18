@@ -180,6 +180,7 @@ POST /employees/{employee}/wallets
 GET  /employees/{employee}/wallets
 GET  /wallets
 GET  /wallets/{wallet}
+POST /wallets/{wallet}/transfers
 ```
 
 Filters:
@@ -228,6 +229,24 @@ Idempotency-Key: withdrawal-user-123-001
 {
   "amount": "250.00",
   "currency": "USD"
+}
+```
+
+### Wallet Transfers
+
+Transfers are allowed between two different active wallets owned by the same employee and in the same currency.
+
+```http
+POST /wallets/{wallet}/transfers
+Idempotency-Key: transfer-demo-001
+```
+
+```json
+{
+  "to_wallet_id": 2,
+  "amount": "125.00",
+  "currency": "USD",
+  "reason": "Move part of salary to savings"
 }
 ```
 
@@ -285,6 +304,7 @@ Filters:
 ## Assumptions
 
 - Transfers are same-currency only.
+- Transfers are currently limited to wallets owned by the same employee. Employer-level wallet ownership is not modeled in this take-home scope.
 - No FX conversion is implemented.
 - No real payroll provider or bank provider is called.
 - Salary wallets are auto-created when a valid salary event arrives for an existing employee.

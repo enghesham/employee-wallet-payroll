@@ -13,6 +13,7 @@ use App\Domain\Wallets\Exceptions\DuplicateOperationException;
 use App\Domain\Wallets\Exceptions\InsufficientFundsException;
 use App\Domain\Wallets\Exceptions\InvalidMoneyAmountException;
 use App\Domain\Wallets\Exceptions\WalletNotActiveException;
+use App\Domain\Wallets\Exceptions\WalletTransferNotAllowedException;
 use App\Domain\Wallets\Models\Wallet;
 use App\Domain\Wallets\Models\WalletLedgerEntry;
 use Closure;
@@ -235,7 +236,7 @@ class WalletLedgerService
             compact('fromWallet', 'toWallet', 'amount', 'currency', 'reason', 'reference', 'metadata'),
             function () use ($fromWallet, $toWallet, $amount, $currency, $idempotencyKey, $reason, $reference, $metadata): array {
                 if ($fromWallet->is($toWallet)) {
-                    throw CurrencyMismatchException::forWallet('different wallet', 'same wallet');
+                    throw WalletTransferNotAllowedException::sameWallet();
                 }
 
                 $lockedWallets = Wallet::query()
@@ -249,6 +250,10 @@ class WalletLedgerService
                 $lockedFrom = $lockedWallets->get($fromWallet->id);
                 /** @var Wallet $lockedTo */
                 $lockedTo = $lockedWallets->get($toWallet->id);
+
+                if ($lockedFrom->employee_id !== $lockedTo->employee_id) {
+                    throw WalletTransferNotAllowedException::differentEmployees();
+                }
 
                 $this->assertWalletCanMoveMoney($lockedFrom, $currency);
                 $this->assertWalletCanMoveMoney($lockedTo, $currency);
