@@ -13,7 +13,13 @@ class EnsureProviderTokenIsValid
         $expectedToken = config("integrations.provider_tokens.{$provider}");
         $providedToken = $request->bearerToken();
 
-        if (! is_string($expectedToken) || $expectedToken === '' || ! is_string($providedToken) || ! hash_equals($expectedToken, $providedToken)) {
+        if (! is_string($expectedToken) || $expectedToken === '') {
+            return response()->json([
+                'message' => "Provider token for [{$provider}] is not configured.",
+            ], Response::HTTP_UNAUTHORIZED);
+        }
+
+        if (! is_string($providedToken) || ! hash_equals($expectedToken, $providedToken)) {
             return response()->json([
                 'message' => 'Invalid provider token.',
             ], Response::HTTP_UNAUTHORIZED);

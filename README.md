@@ -30,6 +30,11 @@ DB_PORT=5432
 DB_DATABASE=employee_wallet_payroll
 DB_USERNAME=postgres
 DB_PASSWORD=
+```
+
+Set demo provider tokens for local testing:
+
+```env
 PAYROLL_PROVIDER_TOKEN=local-payroll-token
 BANK_PROVIDER_TOKEN=local-bank-token
 ```
