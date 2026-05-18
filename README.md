@@ -85,14 +85,41 @@ Swagger UI assets are loaded from a CDN, so the browser needs internet access fo
 The application is a modular Laravel monolith. Business workflows live in domain actions/services, while controllers stay thin.
 
 ```text
-HTTP Controllers
-      |
-Form Requests -> Actions / Services -> Eloquent Models -> PostgreSQL
-      |
-API Resources
+Clients / Postman / Swagger UI
+          |
+          v
+Laravel HTTP Layer
+Routes -> Form Requests -> Thin Controllers -> API Resources
+          |
+          v
+Domain Actions / Services
+Employees | Payroll | Banking | Wallets | Shared
+          |
+          v
+WalletLedgerService
+centralized credits, debits, reserves, releases, captures, transfers
+          |
+          v
+Eloquent Models + PostgreSQL
+employees, wallets, wallet_ledger_entries, payroll_events,
+withdrawal_requests, bank_payment_requests, idempotency_records
+```
 
-Domain Modules:
-Employees | Wallets | Payroll | Banking | Shared
+Integration flow:
+
+```text
+Payroll Provider Stub
+   -> Payroll Event API
+   -> Payroll Actions
+   -> WalletLedgerService
+   -> Salary wallet ledger credit
+
+Employee Withdrawal Request
+   -> Banking Action
+   -> WalletLedgerService reserve
+   -> Bank Payment Request
+   -> Bank Callback
+   -> WalletLedgerService capture or release
 ```
 
 Main modules:
