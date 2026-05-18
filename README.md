@@ -46,6 +46,18 @@ php artisan migrate --seed
 php artisan serve
 ```
 
+The default seeder includes optional demo/local review data:
+
+- Demo employee: `demo.employee@example.com` / `EMP-DEMO-001`
+- Salary wallet in `USD` funded with `1000.00`
+- Savings wallet in `USD` funded with `200.00`
+
+The opening balances are created through `WalletLedgerService`, so ledger entries and idempotency records are created just like normal money movements. To create or refresh the demo records after migrations have already run:
+
+```bash
+php artisan db:seed
+```
+
 Run tests:
 
 ```bash
