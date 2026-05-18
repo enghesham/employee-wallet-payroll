@@ -17,7 +17,7 @@ Route::prefix('v1')->group(function (): void {
     Route::get('employees/{employee}/wallets', [WalletController::class, 'employeeIndex']);
     Route::post('employees/{employee}/wallets', [WalletController::class, 'store']);
     Route::post('wallets/{wallet}/withdrawals', [WithdrawalRequestController::class, 'store']);
-    Route::post('bank/payment-requests/{bankPaymentRequest}/callback', [BankPaymentCallbackController::class, 'store']);
+    Route::post('integrations/bank/callbacks', [BankPaymentCallbackController::class, 'store']);
     Route::post('payroll/events', [PayrollEventController::class, 'store']);
     Route::apiResource('wallets', WalletController::class)->only(['index', 'show']);
 });

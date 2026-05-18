@@ -8,6 +8,7 @@ use App\Domain\Banking\Exceptions\BankPaymentStateException;
 use App\Domain\Banking\Models\BankPaymentRequest;
 use App\Domain\Wallets\Enums\WalletLedgerEntryType;
 use App\Domain\Wallets\Services\WalletLedgerService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class HandleBankPaymentCallbackAction
@@ -15,15 +16,16 @@ class HandleBankPaymentCallbackAction
     public function __construct(private readonly WalletLedgerService $ledger) {}
 
     /**
-     * @param  array{status: string, provider_reference?: string|null, failure_reason?: string|null, payload?: array<string, mixed>}  $data
+     * @param  array{provider?: string, provider_reference: string, status: string, occurred_at: string, failure_reason?: string|null, payload?: array<string, mixed>}  $data
      */
-    public function execute(BankPaymentRequest $bankPaymentRequest, array $data): BankPaymentRequest
+    public function execute(array $data): BankPaymentRequest
     {
-        return DB::transaction(function () use ($bankPaymentRequest, $data): BankPaymentRequest {
+        return DB::transaction(function () use ($data): BankPaymentRequest {
             /** @var BankPaymentRequest $payment */
             $payment = BankPaymentRequest::query()
                 ->with(['withdrawalRequest.wallet'])
-                ->whereKey($bankPaymentRequest->id)
+                ->where('provider', $data['provider'] ?? 'mock_bank')
+                ->where('provider_reference', $data['provider_reference'])
                 ->lockForUpdate()
                 ->firstOrFail();
 
@@ -38,7 +40,7 @@ class HandleBankPaymentCallbackAction
             }
 
             return match ($requestedStatus) {
-                'success' => $this->handleSuccess($payment, $data),
+                'succeeded' => $this->handleSuccess($payment, $data),
                 'failed' => $this->handleFailure($payment, $data),
             };
         });
@@ -50,12 +52,13 @@ class HandleBankPaymentCallbackAction
     private function handleSuccess(BankPaymentRequest $payment, array $data): BankPaymentRequest
     {
         $withdrawal = $payment->withdrawalRequest;
+        $occurredAt = Carbon::parse($data['occurred_at']);
 
         $this->ledger->captureReserved(
             wallet: $withdrawal->wallet,
             amount: $withdrawal->amount,
             currency: $withdrawal->currency,
-            idempotencyKey: "bank-callback:{$payment->id}:success",
+            idempotencyKey: "bank-callback:{$payment->provider}:{$payment->provider_reference}:succeeded",
             type: WalletLedgerEntryType::WithdrawalCapture,
             source: $withdrawal,
             reason: 'Bank withdrawal succeeded.',
@@ -65,15 +68,14 @@ class HandleBankPaymentCallbackAction
 
         $withdrawal->forceFill([
             'status' => WithdrawalRequestStatus::Succeeded,
-            'completed_at' => now(),
+            'completed_at' => $occurredAt,
             'failure_reason' => null,
         ])->save();
 
         $payment->forceFill([
-            'provider_reference' => $data['provider_reference'] ?? $payment->provider_reference,
             'status' => BankPaymentRequestStatus::Succeeded,
-            'response_payload' => $data['payload'] ?? [],
-            'confirmed_at' => now(),
+            'response_payload' => $this->callbackPayload($data),
+            'confirmed_at' => $occurredAt,
             'failure_reason' => null,
         ])->save();
 
@@ -87,12 +89,13 @@ class HandleBankPaymentCallbackAction
     {
         $withdrawal = $payment->withdrawalRequest;
         $failureReason = $data['failure_reason'] ?? 'Bank payment failed.';
+        $occurredAt = Carbon::parse($data['occurred_at']);
 
         $this->ledger->release(
             wallet: $withdrawal->wallet,
             amount: $withdrawal->amount,
             currency: $withdrawal->currency,
-            idempotencyKey: "bank-callback:{$payment->id}:failed",
+            idempotencyKey: "bank-callback:{$payment->provider}:{$payment->provider_reference}:failed",
             type: WalletLedgerEntryType::WithdrawalRelease,
             source: $withdrawal,
             reason: 'Bank withdrawal failed.',
@@ -102,15 +105,14 @@ class HandleBankPaymentCallbackAction
 
         $withdrawal->forceFill([
             'status' => WithdrawalRequestStatus::Failed,
-            'completed_at' => now(),
+            'completed_at' => $occurredAt,
             'failure_reason' => $failureReason,
         ])->save();
 
         $payment->forceFill([
-            'provider_reference' => $data['provider_reference'] ?? $payment->provider_reference,
             'status' => BankPaymentRequestStatus::Failed,
-            'response_payload' => $data['payload'] ?? [],
-            'failed_at' => now(),
+            'response_payload' => $this->callbackPayload($data),
+            'failed_at' => $occurredAt,
             'failure_reason' => $failureReason,
         ])->save();
 
@@ -124,7 +126,22 @@ class HandleBankPaymentCallbackAction
 
     private function matchesFinalStatus(BankPaymentRequestStatus $currentStatus, string $requestedStatus): bool
     {
-        return ($currentStatus === BankPaymentRequestStatus::Succeeded && $requestedStatus === 'success')
+        return ($currentStatus === BankPaymentRequestStatus::Succeeded && $requestedStatus === 'succeeded')
             || ($currentStatus === BankPaymentRequestStatus::Failed && $requestedStatus === 'failed');
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function callbackPayload(array $data): array
+    {
+        return [
+            'provider' => $data['provider'] ?? 'mock_bank',
+            'provider_reference' => $data['provider_reference'],
+            'status' => $data['status'],
+            'occurred_at' => $data['occurred_at'],
+            'payload' => $data['payload'] ?? [],
+        ];
     }
 }

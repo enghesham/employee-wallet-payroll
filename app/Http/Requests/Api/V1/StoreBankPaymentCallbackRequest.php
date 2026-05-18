@@ -18,8 +18,10 @@ class StoreBankPaymentCallbackRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', 'string', Rule::in(['success', 'failed'])],
-            'provider_reference' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'provider' => ['sometimes', 'string', 'max:100'],
+            'provider_reference' => ['required', 'string', 'max:255'],
+            'status' => ['required', 'string', Rule::in(['succeeded', 'failed'])],
+            'occurred_at' => ['required', 'date'],
             'failure_reason' => ['required_if:status,failed', 'nullable', 'string', 'max:1000'],
             'payload' => ['sometimes', 'array'],
         ];

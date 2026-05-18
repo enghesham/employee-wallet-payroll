@@ -86,8 +86,10 @@ class BankWithdrawalApiTest extends TestCase
     {
         [$wallet, $payment] = $this->createPendingWithdrawal('withdrawal-success-key', '40.0000');
 
-        $response = $this->postJson("/api/v1/bank/payment-requests/{$payment->id}/callback", [
-            'status' => 'success',
+        $response = $this->postJson('/api/v1/integrations/bank/callbacks', [
+            'provider_reference' => $payment->provider_reference,
+            'status' => 'succeeded',
+            'occurred_at' => '2026-05-02T12:00:00Z',
             'payload' => ['settlement_id' => 'settle_1001'],
         ]);
 
@@ -115,8 +117,10 @@ class BankWithdrawalApiTest extends TestCase
     {
         [$wallet, $payment] = $this->createPendingWithdrawal('withdrawal-failure-key', '40.0000');
 
-        $response = $this->postJson("/api/v1/bank/payment-requests/{$payment->id}/callback", [
+        $response = $this->postJson('/api/v1/integrations/bank/callbacks', [
+            'provider_reference' => $payment->provider_reference,
             'status' => 'failed',
+            'occurred_at' => '2026-05-02T12:00:00Z',
             'failure_reason' => 'Rejected by simulated bank.',
         ]);
 
@@ -146,13 +150,15 @@ class BankWithdrawalApiTest extends TestCase
     {
         [$wallet, $payment] = $this->createPendingWithdrawal('withdrawal-duplicate-callback-key', '40.0000');
 
-        $this->postJson("/api/v1/bank/payment-requests/{$payment->id}/callback", [
-            'status' => 'success',
-        ])->assertOk();
+        $callbackPayload = [
+            'provider_reference' => $payment->provider_reference,
+            'status' => 'succeeded',
+            'occurred_at' => '2026-05-02T12:00:00Z',
+        ];
 
-        $this->postJson("/api/v1/bank/payment-requests/{$payment->id}/callback", [
-            'status' => 'success',
-        ])->assertOk();
+        $this->postJson('/api/v1/integrations/bank/callbacks', $callbackPayload)->assertOk();
+
+        $this->postJson('/api/v1/integrations/bank/callbacks', $callbackPayload)->assertOk();
 
         $wallet->refresh();
 
