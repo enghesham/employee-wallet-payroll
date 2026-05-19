@@ -287,7 +287,7 @@
           "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PayrollEvent"}}}
         },
         "responses": {
-          "202": {"description": "Payroll event received"},
+          "202": {"description": "Payroll event stored and queued for processing"},
           "401": {"description": "Missing, stale, or invalid webhook signature"},
           "409": {"description": "Event already processing"}
         }

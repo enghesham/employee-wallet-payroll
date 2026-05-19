@@ -12,12 +12,45 @@ use App\Domain\Wallets\Enums\WalletType;
 use App\Domain\Wallets\Models\Wallet;
 use App\Domain\Wallets\Models\WalletLedgerEntry;
 use App\Domain\Wallets\Services\WalletLedgerService;
+use App\Jobs\ProcessPayrollEventJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class PayrollEventApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_payroll_event_is_stored_and_queued_for_background_processing(): void
+    {
+        Queue::fake();
+
+        $response = $this->postJsonWithProviderSignature('/api/v1/payroll/events', [
+            'provider_event_id' => 'queued-payroll-event-1',
+            'event_type' => PayrollEventType::EmployeeOnboarded->value,
+            'payload' => [
+                'employee' => [
+                    'external_reference' => 'queued_payroll_emp',
+                    'name' => 'Queued Payroll Employee',
+                    'email' => 'queued.payroll@example.test',
+                    'status' => EmployeeStatus::Active->value,
+                ],
+            ],
+        ], 'payroll');
+
+        $response
+            ->assertAccepted()
+            ->assertJsonPath('data.status', PayrollEventStatus::Received->value);
+
+        $event = PayrollEvent::query()->firstOrFail();
+
+        Queue::assertPushed(ProcessPayrollEventJob::class, fn (ProcessPayrollEventJob $job): bool => $job->payrollEventId === $event->id);
+
+        $this->assertSame(PayrollEventStatus::Received, $event->status);
+        $this->assertDatabaseMissing('employees', [
+            'external_reference' => 'queued_payroll_emp',
+        ]);
+    }
 
     public function test_employee_onboarded_event_creates_or_updates_employee(): void
     {

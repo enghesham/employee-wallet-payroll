@@ -49,6 +49,14 @@ php artisan migrate --seed
 php artisan serve
 ```
 
+Process queued payroll events in a second terminal:
+
+```bash
+php artisan queue:work
+```
+
+The default local setup uses Laravel's database queue so reviewers do not need Redis. Redis can be used by setting `QUEUE_CONNECTION=redis` and configuring Redis normally.
+
 The default seeder includes optional demo/local review data:
 
 - Demo employee: `demo.employee@example.com` / `EMP-DEMO-001`
@@ -115,6 +123,7 @@ Integration flow:
 ```text
 Payroll Provider Stub
    -> Payroll Event API
+   -> ProcessPayrollEventJob
    -> Payroll Actions
    -> WalletLedgerService
    -> Salary wallet ledger credit
@@ -134,6 +143,8 @@ Main modules:
 - `Payroll`: simulated payroll provider events such as onboarding and salary runs.
 - `Banking`: withdrawal requests, bank payment requests, and async bank callbacks.
 - `Shared`: idempotency and shared infrastructure concepts.
+
+Payroll webhook processing is queued intentionally. The HTTP endpoint validates and stores the provider event, dispatches `ProcessPayrollEventJob`, and returns `202 Accepted`. The job performs employee updates or salary wallet credits through the existing domain actions and `WalletLedgerService`.
 
 ## Design Decisions
 
@@ -272,6 +283,8 @@ X-Provider-Signature: sha256=<hmac_sha256(timestamp + "." + raw_json_body)>
 POST /payroll/events
 ```
 
+The endpoint stores the event and dispatches `ProcessPayrollEventJob`. With `QUEUE_CONNECTION=database`, run `php artisan queue:work` to process queued events. In tests, the queue runs synchronously.
+
 Failed events are retried through a separate protected endpoint:
 
 ```http
@@ -400,9 +413,9 @@ In a production CI setup, I would add a PostgreSQL integration test that starts 
 
 ## Improvements With More Time
 
-Redis, message brokers, and background jobs are intentionally not required for the current scope. The core flows are processed synchronously to keep financial behavior easy to reason about. In production, queues would be introduced for provider event processing, retry backoff, reconciliation jobs, notifications, and outbox-driven integrations once those needs justify the operational complexity.
+Background jobs are used only where they earn their place: inbound payroll webhooks are stored quickly and processed by `ProcessPayrollEventJob`. The default local queue driver is `database` to keep review setup simple. Redis or a message broker can be introduced by setting `QUEUE_CONNECTION=redis` or by adding a broker-backed queue when throughput, retry isolation, or operational requirements justify the extra infrastructure.
 
-- Queue payroll event processing and bank callback handling.
+- Queue bank callback handling where callback processing becomes heavier or provider retries need isolation.
 - Add full queues with retries, dead-letter handling, and operational monitoring.
 - Add an outbox pattern for reliable provider communication.
 - Build real provider adapters for payroll and banking.

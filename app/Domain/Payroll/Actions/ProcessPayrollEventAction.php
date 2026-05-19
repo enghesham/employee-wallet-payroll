@@ -42,7 +42,7 @@ class ProcessPayrollEventAction
 
         $event = $this->storeIncomingEvent($provider, $data['provider_event_id'], $eventType, $payload, $data['occurred_at'] ?? null);
 
-        return $this->processStoredEvent($event);
+        return $event;
     }
 
     public function processStoredEvent(PayrollEvent $event): PayrollEvent
@@ -70,7 +70,7 @@ class ProcessPayrollEventAction
         return match ($event->status) {
             PayrollEventStatus::Processed, PayrollEventStatus::Failed, PayrollEventStatus::Ignored => $event->refresh(),
             PayrollEventStatus::Processing => throw PayrollEventStateException::alreadyProcessing($event->id),
-            PayrollEventStatus::Received => $this->processStoredEvent($event),
+            PayrollEventStatus::Received => $event->refresh(),
         };
     }
 
