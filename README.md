@@ -411,6 +411,21 @@ The implementation uses PostgreSQL row-level locking through `lockForUpdate()` i
 
 In a production CI setup, I would add a PostgreSQL integration test that starts two parallel workers attempting to debit or withdraw from the same wallet and asserts only one operation can consume the available balance.
 
+## Trade-offs
+
+- Payroll webhooks are queued because provider delivery can spike, fail temporarily, or retry. Storing the event first and processing it in `ProcessPayrollEventJob` keeps the webhook response fast while preserving idempotency.
+- Bank callbacks are processed synchronously for this scope because the callback workflow is small, deterministic, and already guarded by wallet locks and idempotent state transitions. If callback processing grows, it can move behind a job without changing the ledger engine.
+- Redis is optional rather than required. The default `database` queue keeps reviewer setup simple, while `QUEUE_CONNECTION=redis` remains available for higher throughput environments.
+- Employer-level wallets and multi-tenant administration are intentionally left outside the current scope. The current model focuses on employee wallets, payroll deposits, withdrawals, and explainable ledger history.
+
+## Operational Notes
+
+- Run `php artisan queue:work` while testing payroll events locally when `QUEUE_CONNECTION=database`.
+- In production, monitor failed jobs and stuck `payroll_events` in `received` or `processing` status.
+- Configure real secrets for `PAYROLL_WEBHOOK_SECRET`, `BANK_WEBHOOK_SECRET`, `PAYROLL_PROVIDER_TOKEN`, and `BANK_PROVIDER_TOKEN`; demo values are for local review only.
+- Validate concurrency behavior against PostgreSQL or MySQL, not SQLite.
+- Reconciliation jobs should periodically inspect pending withdrawals, unresolved bank payments, and payroll events that did not reach a final state.
+
 ## Improvements With More Time
 
 Background jobs are used only where they earn their place: inbound payroll webhooks are stored quickly and processed by `ProcessPayrollEventJob`. The default local queue driver is `database` to keep review setup simple. Redis or a message broker can be introduced by setting `QUEUE_CONNECTION=redis` or by adding a broker-backed queue when throughput, retry isolation, or operational requirements justify the extra infrastructure.
