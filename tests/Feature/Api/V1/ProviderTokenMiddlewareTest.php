@@ -3,8 +3,9 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Domain\Employees\Enums\EmployeeStatus;
-use App\Domain\Employees\Models\Employee;
+use App\Domain\Payroll\Enums\PayrollEventStatus;
 use App\Domain\Payroll\Enums\PayrollEventType;
+use App\Domain\Payroll\Models\PayrollEvent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -16,42 +17,48 @@ class ProviderTokenMiddlewareTest extends TestCase
     {
         config(['integrations.provider_tokens.payroll' => null]);
 
-        $this->withToken('anything')->postJson('/api/v1/payroll/events', $this->payrollPayload())
+        $event = $this->failedPayrollEvent();
+
+        $this->withToken('anything')->postJson("/api/v1/integrations/payroll/events/{$event->id}/retry")
             ->assertUnauthorized()
             ->assertJsonPath('message', 'Provider token for [payroll] is not configured.');
     }
 
     public function test_missing_request_token_returns_unauthorized(): void
     {
-        $this->postJson('/api/v1/payroll/events', $this->payrollPayload())
+        $event = $this->failedPayrollEvent();
+
+        $this->postJson("/api/v1/integrations/payroll/events/{$event->id}/retry")
             ->assertUnauthorized()
             ->assertJsonPath('message', 'Invalid provider token.');
     }
 
     public function test_invalid_request_token_returns_unauthorized(): void
     {
-        $this->withToken('wrong-token')->postJson('/api/v1/payroll/events', $this->payrollPayload())
+        $event = $this->failedPayrollEvent();
+
+        $this->withToken('wrong-token')->postJson("/api/v1/integrations/payroll/events/{$event->id}/retry")
             ->assertUnauthorized()
             ->assertJsonPath('message', 'Invalid provider token.');
     }
 
     public function test_valid_token_allows_request(): void
     {
-        Employee::factory()->create(['external_reference' => 'provider_token_emp']);
+        $event = $this->failedPayrollEvent();
 
-        $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', $this->payrollPayload())
-            ->assertAccepted()
-            ->assertJsonPath('data.status', 'processed');
+        $this->withToken('local-payroll-token')->postJson("/api/v1/integrations/payroll/events/{$event->id}/retry")
+            ->assertOk();
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function payrollPayload(): array
+    private function failedPayrollEvent(): PayrollEvent
     {
-        return [
+        return PayrollEvent::query()->create([
+            'provider' => 'mock_payroll',
             'provider_event_id' => 'provider-token-event-'.uniqid(),
-            'event_type' => PayrollEventType::EmployeeOnboarded->value,
+            'event_type' => PayrollEventType::EmployeeOnboarded,
+            'payroll_employee_id' => 'provider_token_emp',
+            'status' => PayrollEventStatus::Failed,
+            'failure_reason' => 'Retry token middleware test.',
             'payload' => [
                 'employee' => [
                     'external_reference' => 'provider_token_emp',
@@ -60,6 +67,6 @@ class ProviderTokenMiddlewareTest extends TestCase
                     'status' => EmployeeStatus::Active->value,
                 ],
             ],
-        ];
+        ]);
     }
 }

@@ -8,6 +8,7 @@ use App\Domain\Wallets\Exceptions\InsufficientFundsException;
 use App\Domain\Wallets\Exceptions\InvalidMoneyAmountException;
 use App\Domain\Wallets\Exceptions\WalletNotActiveException;
 use App\Domain\Wallets\Exceptions\WalletTransferNotAllowedException;
+use App\Http\Middleware\EnsureProviderSignatureIsValid;
 use App\Http\Middleware\EnsureProviderTokenIsValid;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
+            'provider.signature' => EnsureProviderSignatureIsValid::class,
             'provider.token' => EnsureProviderTokenIsValid::class,
         ]);
     })

@@ -121,12 +121,12 @@ class BankWithdrawalApiTest extends TestCase
     {
         [$wallet, $payment] = $this->createPendingWithdrawal('withdrawal-success-key', '40.0000');
 
-        $response = $this->withToken('local-bank-token')->postJson('/api/v1/integrations/bank/callbacks', [
+        $response = $this->postJsonWithProviderSignature('/api/v1/integrations/bank/callbacks', [
             'provider_reference' => $payment->provider_reference,
             'status' => 'succeeded',
             'occurred_at' => '2026-05-02T12:00:00Z',
             'payload' => ['settlement_id' => 'settle_1001'],
-        ]);
+        ], 'bank');
 
         $response
             ->assertOk()
@@ -152,12 +152,12 @@ class BankWithdrawalApiTest extends TestCase
     {
         [$wallet, $payment] = $this->createPendingWithdrawal('withdrawal-failure-key', '40.0000');
 
-        $response = $this->withToken('local-bank-token')->postJson('/api/v1/integrations/bank/callbacks', [
+        $response = $this->postJsonWithProviderSignature('/api/v1/integrations/bank/callbacks', [
             'provider_reference' => $payment->provider_reference,
             'status' => 'failed',
             'occurred_at' => '2026-05-02T12:00:00Z',
             'failure_reason' => 'Rejected by simulated bank.',
-        ]);
+        ], 'bank');
 
         $response
             ->assertOk()
@@ -191,9 +191,9 @@ class BankWithdrawalApiTest extends TestCase
             'occurred_at' => '2026-05-02T12:00:00Z',
         ];
 
-        $this->withToken('local-bank-token')->postJson('/api/v1/integrations/bank/callbacks', $callbackPayload)->assertOk();
+        $this->postJsonWithProviderSignature('/api/v1/integrations/bank/callbacks', $callbackPayload, 'bank')->assertOk();
 
-        $this->withToken('local-bank-token')->postJson('/api/v1/integrations/bank/callbacks', $callbackPayload)->assertOk();
+        $this->postJsonWithProviderSignature('/api/v1/integrations/bank/callbacks', $callbackPayload, 'bank')->assertOk();
 
         $wallet->refresh();
 
@@ -237,7 +237,7 @@ class BankWithdrawalApiTest extends TestCase
         $this->assertSame(1, WalletLedgerEntry::query()->count());
     }
 
-    public function test_bank_callback_requires_provider_token(): void
+    public function test_bank_callback_requires_provider_signature(): void
     {
         [, $payment] = $this->createPendingWithdrawal('withdrawal-provider-token-key', '10.0000');
 
@@ -247,7 +247,7 @@ class BankWithdrawalApiTest extends TestCase
             'occurred_at' => '2026-05-02T12:00:00Z',
         ])
             ->assertUnauthorized()
-            ->assertJsonPath('message', 'Invalid provider token.');
+            ->assertJsonPath('message', 'Invalid webhook signature.');
     }
 
     /**

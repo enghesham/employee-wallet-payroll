@@ -21,7 +21,7 @@ class PayrollEventApiTest extends TestCase
 
     public function test_employee_onboarded_event_creates_or_updates_employee(): void
     {
-        $response = $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', [
+        $response = $this->postJsonWithProviderSignature('/api/v1/payroll/events', [
             'provider_event_id' => 'payroll-event-onboard-1',
             'event_type' => PayrollEventType::EmployeeOnboarded->value,
             'payload' => [
@@ -32,7 +32,7 @@ class PayrollEventApiTest extends TestCase
                     'status' => EmployeeStatus::Active->value,
                 ],
             ],
-        ]);
+        ], 'payroll');
 
         $response
             ->assertAccepted()
@@ -46,7 +46,7 @@ class PayrollEventApiTest extends TestCase
             'status' => EmployeeStatus::Active->value,
         ]);
 
-        $updateResponse = $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', [
+        $updateResponse = $this->postJsonWithProviderSignature('/api/v1/payroll/events', [
             'provider_event_id' => 'payroll-event-onboard-2',
             'event_type' => PayrollEventType::EmployeeOnboarded->value,
             'payload' => [
@@ -57,7 +57,7 @@ class PayrollEventApiTest extends TestCase
                     'status' => EmployeeStatus::Suspended->value,
                 ],
             ],
-        ]);
+        ], 'payroll');
 
         $updateResponse
             ->assertAccepted()
@@ -91,8 +91,8 @@ class PayrollEventApiTest extends TestCase
             ],
         ];
 
-        $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', $payload)->assertAccepted();
-        $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', $payload)->assertAccepted();
+        $this->postJsonWithProviderSignature('/api/v1/payroll/events', $payload, 'payroll')->assertAccepted();
+        $this->postJsonWithProviderSignature('/api/v1/payroll/events', $payload, 'payroll')->assertAccepted();
 
         $wallet->refresh();
 
@@ -108,14 +108,14 @@ class PayrollEventApiTest extends TestCase
             'status' => EmployeeStatus::Active,
         ]);
 
-        $response = $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', [
+        $response = $this->postJsonWithProviderSignature('/api/v1/payroll/events', [
             'provider_event_id' => 'payroll-status-change-1',
             'event_type' => PayrollEventType::EmployeeStatusChanged->value,
             'payload' => [
                 'employee_external_reference' => 'payroll_emp_status_1',
                 'status' => EmployeeStatus::Suspended->value,
             ],
-        ]);
+        ], 'payroll');
 
         $response
             ->assertAccepted()
@@ -131,7 +131,7 @@ class PayrollEventApiTest extends TestCase
     {
         Employee::factory()->create(['external_reference' => 'payroll_emp_4001']);
 
-        $response = $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', [
+        $response = $this->postJsonWithProviderSignature('/api/v1/payroll/events', [
             'provider_event_id' => 'salary-run-4001-2026-05',
             'event_type' => PayrollEventType::SalaryRunCompleted->value,
             'payload' => [
@@ -140,7 +140,7 @@ class PayrollEventApiTest extends TestCase
                 'amount' => '2750.5000',
                 'currency' => 'USD',
             ],
-        ]);
+        ], 'payroll');
 
         $response
             ->assertAccepted()
@@ -161,7 +161,7 @@ class PayrollEventApiTest extends TestCase
 
     public function test_failed_payroll_event_is_stored_with_failure_reason(): void
     {
-        $response = $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', [
+        $response = $this->postJsonWithProviderSignature('/api/v1/payroll/events', [
             'provider_event_id' => 'salary-run-missing-employee',
             'event_type' => PayrollEventType::SalaryRunCompleted->value,
             'payload' => [
@@ -170,7 +170,7 @@ class PayrollEventApiTest extends TestCase
                 'amount' => '900.0000',
                 'currency' => 'USD',
             ],
-        ]);
+        ], 'payroll');
 
         $response
             ->assertAccepted()
@@ -183,7 +183,7 @@ class PayrollEventApiTest extends TestCase
         $this->assertSame(0, WalletLedgerEntry::query()->count());
     }
 
-    public function test_payroll_event_requires_provider_token(): void
+    public function test_payroll_event_requires_provider_signature(): void
     {
         $this->postJson('/api/v1/payroll/events', [
             'provider_event_id' => 'payroll-token-required',
@@ -198,12 +198,12 @@ class PayrollEventApiTest extends TestCase
             ],
         ])
             ->assertUnauthorized()
-            ->assertJsonPath('message', 'Invalid provider token.');
+            ->assertJsonPath('message', 'Invalid webhook signature.');
     }
 
     public function test_failed_payroll_event_can_be_retried_successfully(): void
     {
-        $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', [
+        $this->postJsonWithProviderSignature('/api/v1/payroll/events', [
             'provider_event_id' => 'retry-salary-after-employee-created',
             'event_type' => PayrollEventType::SalaryRunCompleted->value,
             'payload' => [
@@ -212,7 +212,7 @@ class PayrollEventApiTest extends TestCase
                 'amount' => '1000.0000',
                 'currency' => 'USD',
             ],
-        ])
+        ], 'payroll')
             ->assertAccepted()
             ->assertJsonPath('data.status', PayrollEventStatus::Failed->value);
 
@@ -238,7 +238,7 @@ class PayrollEventApiTest extends TestCase
     {
         Employee::factory()->create(['external_reference' => 'processed_retry_emp']);
 
-        $this->withToken('local-payroll-token')->postJson('/api/v1/payroll/events', [
+        $this->postJsonWithProviderSignature('/api/v1/payroll/events', [
             'provider_event_id' => 'processed-retry-event',
             'event_type' => PayrollEventType::SalaryRunCompleted->value,
             'payload' => [
@@ -247,7 +247,7 @@ class PayrollEventApiTest extends TestCase
                 'amount' => '500.0000',
                 'currency' => 'USD',
             ],
-        ])->assertAccepted();
+        ], 'payroll')->assertAccepted();
 
         $event = PayrollEvent::query()->firstOrFail();
 

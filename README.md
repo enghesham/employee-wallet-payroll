@@ -32,11 +32,14 @@ DB_USERNAME=postgres
 DB_PASSWORD=
 ```
 
-Set demo provider tokens for local testing:
+Set demo provider tokens and webhook secrets for local testing only:
 
 ```env
 PAYROLL_PROVIDER_TOKEN=local-payroll-token
 BANK_PROVIDER_TOKEN=local-bank-token
+PAYROLL_WEBHOOK_SECRET=local-payroll-webhook-secret
+BANK_WEBHOOK_SECRET=local-bank-webhook-secret
+WEBHOOK_SIGNATURE_TOLERANCE_SECONDS=300
 ```
 
 Run the app:
@@ -79,6 +82,8 @@ public/docs/openapi.json
 ```
 
 Swagger UI assets are loaded from a CDN, so the browser needs internet access for the documentation UI to render.
+
+Signed webhook requests require HMAC headers. The Postman collection includes pre-request scripts that calculate those headers automatically for payroll events and bank callbacks.
 
 ## Architecture
 
@@ -136,12 +141,21 @@ Main modules:
 
 For the take-home scope, full end-user authentication is intentionally omitted to keep the focus on wallet correctness and integrations. Public employee and wallet endpoints are therefore left unguarded.
 
-Simulated provider endpoints use a simple bearer-token middleware:
+Simulated provider webhooks use HMAC SHA-256 signatures:
 
-- `PAYROLL_PROVIDER_TOKEN` protects `POST /api/v1/payroll/events`
-- `BANK_PROVIDER_TOKEN` protects `POST /api/v1/integrations/bank/callbacks`
+- `PAYROLL_WEBHOOK_SECRET` signs `POST /api/v1/payroll/events`
+- `BANK_WEBHOOK_SECRET` signs `POST /api/v1/integrations/bank/callbacks`
 
-In production, these endpoints would be protected using service-to-service authentication, webhook signatures, mTLS, IP allowlists, or Sanctum/JWT depending on the consuming clients.
+Webhook requests must include:
+
+```http
+X-Provider-Timestamp: <unix_timestamp>
+X-Provider-Signature: sha256=<hmac_sha256(timestamp + "." + raw_json_body)>
+```
+
+The timestamp must be within `WEBHOOK_SIGNATURE_TOLERANCE_SECONDS` to reduce replay risk. The explicit payroll retry endpoint is not an inbound webhook, so it remains protected by the simpler bearer token middleware using `PAYROLL_PROVIDER_TOKEN`.
+
+In production, these endpoints could be further protected using mTLS, IP allowlists, secret rotation, replay nonce storage, or Sanctum/JWT depending on the consuming clients.
 
 ### Ledger Entries
 
@@ -250,11 +264,18 @@ Filters:
 Requires:
 
 ```http
-Authorization: Bearer <PAYROLL_PROVIDER_TOKEN>
+X-Provider-Timestamp: <unix_timestamp>
+X-Provider-Signature: sha256=<hmac_sha256(timestamp + "." + raw_json_body)>
 ```
 
 ```http
 POST /payroll/events
+```
+
+Failed events are retried through a separate protected endpoint:
+
+```http
+Authorization: Bearer <PAYROLL_PROVIDER_TOKEN>
 POST /integrations/payroll/events/{payrollEvent}/retry
 ```
 
@@ -310,7 +331,8 @@ Idempotency-Key: transfer-demo-001
 Requires:
 
 ```http
-Authorization: Bearer <BANK_PROVIDER_TOKEN>
+X-Provider-Timestamp: <unix_timestamp>
+X-Provider-Signature: sha256=<hmac_sha256(timestamp + "." + raw_json_body)>
 ```
 
 ```http
@@ -384,8 +406,8 @@ Redis, message brokers, and background jobs are intentionally not required for t
 - Add full queues with retries, dead-letter handling, and operational monitoring.
 - Add an outbox pattern for reliable provider communication.
 - Build real provider adapters for payroll and banking.
-- Add full HMAC webhook signatures.
-- Publish an OpenAPI specification.
+- Add webhook secret rotation and replay nonce storage.
+- Expand the OpenAPI specification with richer response schemas and examples.
 - Add PostgreSQL-backed concurrency tests.
 - Add structured logging, correlation IDs, and tracing.
 - Add reconciliation reports for payroll, bank payments, and wallet ledger entries.

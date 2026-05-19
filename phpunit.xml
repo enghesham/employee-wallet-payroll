@@ -34,5 +34,8 @@
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <env name="PAYROLL_PROVIDER_TOKEN" value="local-payroll-token"/>
         <env name="BANK_PROVIDER_TOKEN" value="local-bank-token"/>
+        <env name="PAYROLL_WEBHOOK_SECRET" value="local-payroll-webhook-secret"/>
+        <env name="BANK_WEBHOOK_SECRET" value="local-bank-webhook-secret"/>
+        <env name="WEBHOOK_SIGNATURE_TOLERANCE_SECONDS" value="300"/>
     </php>
 </phpunit>

@@ -22,9 +22,9 @@ Route::prefix('v1')->group(function (): void {
     Route::post('wallets/{wallet}/transfers', [WalletTransferController::class, 'store']);
     Route::post('wallets/{wallet}/withdrawals', [WithdrawalRequestController::class, 'store']);
     Route::post('integrations/bank/callbacks', [BankPaymentCallbackController::class, 'store'])
-        ->middleware('provider.token:bank');
+        ->middleware('provider.signature:bank');
     Route::post('payroll/events', [PayrollEventController::class, 'store'])
-        ->middleware('provider.token:payroll');
+        ->middleware('provider.signature:payroll');
     Route::post('integrations/payroll/events/{payrollEvent}/retry', [PayrollEventController::class, 'retry'])
         ->middleware('provider.token:payroll');
     Route::apiResource('wallets', WalletController::class)->only(['index', 'show']);

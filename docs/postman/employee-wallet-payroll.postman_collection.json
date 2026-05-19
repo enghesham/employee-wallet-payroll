@@ -85,6 +85,16 @@
       "key": "bank_provider_token",
       "value": "local-bank-token",
       "type": "string"
+    },
+    {
+      "key": "payroll_webhook_secret",
+      "value": "local-payroll-webhook-secret",
+      "type": "string"
+    },
+    {
+      "key": "bank_webhook_secret",
+      "value": "local-bank-webhook-secret",
+      "type": "string"
     }
   ],
   "item": [
@@ -315,7 +325,13 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.collectionVariables.set('payroll_onboard_event_id', 'evt-onboard-' + Date.now());"
+              "pm.collectionVariables.set('payroll_onboard_event_id', 'evt-onboard-' + Date.now());",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const body = pm.variables.replaceIn(pm.request.body.raw);",
+              "const secret = pm.collectionVariables.get('payroll_webhook_secret');",
+              "const signature = 'sha256=' + CryptoJS.HmacSHA256(timestamp + '.' + body, secret).toString(CryptoJS.enc.Hex);",
+              "pm.request.headers.upsert({ key: 'X-Provider-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-Provider-Signature', value: signature });"
             ]
           }
         }
@@ -330,10 +346,6 @@
           {
             "key": "Content-Type",
             "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "Bearer {{bank_provider_token}}"
           }
         ],
         "body": {
@@ -360,7 +372,13 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.collectionVariables.set('salary_event_id', 'evt-salary-demo-001');"
+              "pm.collectionVariables.set('salary_event_id', 'evt-salary-demo-001');",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const body = pm.variables.replaceIn(pm.request.body.raw);",
+              "const secret = pm.collectionVariables.get('payroll_webhook_secret');",
+              "const signature = 'sha256=' + CryptoJS.HmacSHA256(timestamp + '.' + body, secret).toString(CryptoJS.enc.Hex);",
+              "pm.request.headers.upsert({ key: 'X-Provider-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-Provider-Signature', value: signature });"
             ]
           }
         }
@@ -375,10 +393,6 @@
           {
             "key": "Content-Type",
             "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "Bearer {{payroll_provider_token}}"
           }
         ],
         "body": {
@@ -486,6 +500,22 @@
     },
     {
       "name": "11 Bank success callback",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const body = pm.variables.replaceIn(pm.request.body.raw);",
+              "const secret = pm.collectionVariables.get('bank_webhook_secret');",
+              "const signature = 'sha256=' + CryptoJS.HmacSHA256(timestamp + '.' + body, secret).toString(CryptoJS.enc.Hex);",
+              "pm.request.headers.upsert({ key: 'X-Provider-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-Provider-Signature', value: signature });"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "POST",
         "header": [
@@ -496,10 +526,6 @@
           {
             "key": "Content-Type",
             "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "Bearer {{bank_provider_token}}"
           }
         ],
         "body": {
@@ -579,6 +605,22 @@
     },
     {
       "name": "13 Bank failure callback",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const body = pm.variables.replaceIn(pm.request.body.raw);",
+              "const secret = pm.collectionVariables.get('bank_webhook_secret');",
+              "const signature = 'sha256=' + CryptoJS.HmacSHA256(timestamp + '.' + body, secret).toString(CryptoJS.enc.Hex);",
+              "pm.request.headers.upsert({ key: 'X-Provider-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-Provider-Signature', value: signature });"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "POST",
         "header": [
@@ -589,10 +631,6 @@
           {
             "key": "Content-Type",
             "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "Bearer {{bank_provider_token}}"
           }
         ],
         "body": {
@@ -614,6 +652,22 @@
     },
     {
       "name": "14 Duplicate payroll event test",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const body = pm.variables.replaceIn(pm.request.body.raw);",
+              "const secret = pm.collectionVariables.get('payroll_webhook_secret');",
+              "const signature = 'sha256=' + CryptoJS.HmacSHA256(timestamp + '.' + body, secret).toString(CryptoJS.enc.Hex);",
+              "pm.request.headers.upsert({ key: 'X-Provider-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-Provider-Signature', value: signature });"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "POST",
         "header": [
@@ -624,10 +678,6 @@
           {
             "key": "Content-Type",
             "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "Bearer {{payroll_provider_token}}"
           }
         ],
         "body": {

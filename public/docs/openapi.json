@@ -120,6 +120,22 @@
         "required": false,
         "schema": {"type": "string"},
         "example": "request-demo-001"
+      },
+      "ProviderTimestamp": {
+        "name": "X-Provider-Timestamp",
+        "in": "header",
+        "required": true,
+        "schema": {"type": "string"},
+        "description": "Unix timestamp used in the HMAC payload.",
+        "example": "1779192000"
+      },
+      "ProviderSignature": {
+        "name": "X-Provider-Signature",
+        "in": "header",
+        "required": true,
+        "schema": {"type": "string"},
+        "description": "HMAC SHA-256 signature formatted as sha256=<hex>. Signature payload is timestamp.raw_body.",
+        "example": "sha256=..."
       }
     }
   },
@@ -262,14 +278,17 @@
       "post": {
         "summary": "Receive simulated payroll event",
         "tags": ["Payroll"],
-        "security": [{"providerBearer": []}],
+        "parameters": [
+          {"$ref": "#/components/parameters/ProviderTimestamp"},
+          {"$ref": "#/components/parameters/ProviderSignature"}
+        ],
         "requestBody": {
           "required": true,
           "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PayrollEvent"}}}
         },
         "responses": {
           "202": {"description": "Payroll event received"},
-          "401": {"description": "Missing or invalid provider token"},
+          "401": {"description": "Missing, stale, or invalid webhook signature"},
           "409": {"description": "Event already processing"}
         }
       }
@@ -291,14 +310,17 @@
       "post": {
         "summary": "Receive simulated bank callback",
         "tags": ["Banking"],
-        "security": [{"providerBearer": []}],
+        "parameters": [
+          {"$ref": "#/components/parameters/ProviderTimestamp"},
+          {"$ref": "#/components/parameters/ProviderSignature"}
+        ],
         "requestBody": {
           "required": true,
           "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BankCallback"}}}
         },
         "responses": {
           "200": {"description": "Callback processed"},
-          "401": {"description": "Missing or invalid provider token"},
+          "401": {"description": "Missing, stale, or invalid webhook signature"},
           "409": {"description": "Conflicting final callback state"}
         }
       }
